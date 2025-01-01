@@ -1,0 +1,130 @@
+#!/bin/bash
+#
+# tarball2appimage by LinuxDicasPro
+#
+####################################
+
+
+destdir=~/__APPIMAGE__
+test -e "../_APPIMAGE" && destdir="../_APPIMAGE" # Opcional
+
+
+###########################################
+
+arch="x86_64"
+prg="AdobeFlashPlayer"
+version="32.0.0.465"
+
+###########################################
+
+
+for i in {1..35}; { printf '─'; }; printf "\n"
+printf "Search latest version: "
+printf "\033[1;32m$version\033[m\n"
+for i in {1..35}; { printf '─'; }; printf "\n"
+
+set -e
+
+test ! -e $destdir && mkdir -p $destdir
+cd $destdir
+
+
+test -e "$prg-$version-$arch.AppImage" && {
+    echo "appimage found!"
+    exit 0
+}
+
+
+test ! -e "appimagetool-x86_64.AppImage" && {
+    link_tool="https://github.com/AppImage/AppImageKit/releases/download/13/appimagetool-x86_64.AppImage"
+    wget -c -q --show-progress "$link_tool"
+    chmod +x "appimagetool-x86_64.AppImage"
+}
+
+
+#########
+
+link_prg="https://fpdownload.macromedia.com/pub/flashplayer/updaters/32/flash_player_sa_linux.x86_64.tar.gz"
+link_svg="https://raw.githubusercontent.com/flathub/com.adobe.Flash-Player-Projector/refs/heads/master/com.adobe.Flash-Player-Projector.svg"
+
+#########
+
+
+wget -c -q --show-progress "$link_prg"
+file_prg=${link_prg##*/}
+
+cwd=$PWD
+
+rm -rf "$prg.AppDir"
+mkdir -p "$prg.AppDir"
+cd "$prg.AppDir"
+
+echo -e "\nextract $file_prg ..."
+printf "$file_prg\t["
+tar -zxf "$cwd/$file_prg" --checkpoint=50 --checkpoint-action=exec='printf ='
+echo -e "]\n"
+
+wget -c -q --show-progress "$link_svg"
+
+rm -rf ./LGPL
+rm license*
+
+####################################
+
+appimage_name="Adobe Flash Player"
+comment="Player for using content created on the Adobe Flash platform"
+categories="Audio;AudioVideo;Graphics;GTK;Player;Video;Viewer;"
+pr="com.adobe.Flash-Player-Projector"
+
+####################################
+
+
+echo "[Desktop Entry]
+Name=$appimage_name
+GenericName=$appimage_name
+Comment=$comment
+Exec=flashplayer %f
+Icon=$pr
+Type=Application
+Terminal=false
+MimeType=application/x-shockwave-flash;
+Keywords=flash;shockwave;swf;player;adobe;projector;
+Categories=$categories" > "$pr.desktop"
+
+echo "#!/bin/bash
+
+cd \$APPDIR
+desktopfile=~/.local/share/applications/$pr.desktop
+iconfile=~/.local/share/pixmaps/$pr.svg
+
+test ! -e ~/.local/share/applications/ && mkdir -p ~/.local/share/applications
+test ! -e ~/.local/share/pixmaps/ && mkdir -p ~/.local/share/pixmaps
+test ! -e \"\$desktopfile\" && cp $pr.desktop ~/.local/share/applications/
+test ! -e \"\$iconfile\" && cp $pr.svg ~/.local/share/pixmaps/
+
+if ! grep -q \"\$APPIMAGE\" \"\$desktopfile\"; then
+    sed -i \"s:Exec=flashplayer:Exec=\$APPIMAGE:\" \"\$desktopfile\"
+    sed -i \"s:Icon=.*:Icon=\$iconfile:\" \"\$desktopfile\"
+    /usr/bin/update-desktop-database -q || true
+    test -e usr/share/icons/hicolor/icon-theme.cache && {
+        test -x /usr/bin/gtk-update-icon-cache && /usr/bin/gtk-update-icon-cache ~/.local/share/pixmaps/ 2>&1 >&- || true
+    }
+fi
+
+./flashplayer \"\$@\"" > AppRun
+
+chmod +x AppRun
+cd ..
+
+printf "\n"; for ((i=0; i<$COLUMNS; i++)); { printf '─'; }; echo -e "\n"
+
+env ARCH=$arch ./appimagetool-x86_64.AppImage "$prg.AppDir"
+mv "${appimage_name// /_}-$arch.AppImage" "$prg-$version-$arch.AppImage"
+
+printf "\n"; for ((i=0; i<$COLUMNS; i++)); { printf '─'; }; echo -e "\n"
+
+rm -rf "$prg.AppDir"
+cd ..
+
+echo "appimage saved in $destdir/$prg-$version-$arch.AppImage"
+exit 0
